@@ -1,0 +1,88 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Authoritative role lives in the JWT custom claim `role` (set server-side
+    // on activation). UI also mirrors it; these rules enforce server-side.
+    function signedIn() { return request.auth != null; }
+    function hasRole(r) { return signedIn() && request.auth.token.role == r; }
+    function isStaffOrAdmin() { return hasRole('staff') || hasRole('admin'); }
+    // Client seed (`--dart-define=SEED=true`) runs before sign-in; lock down once
+    // `_meta/seed` exists (emulator re-seed: wipe Firestore or delete that doc).
+    function allowSeedBootstrap() {
+      return !exists(/databases/$(database)/documents/_meta/seed);
+    }
+
+    // Institutional records. Readable by signed-in users. Activation binds an
+    // authUid to an `unclaimed` record (also allowed pre-auth for that one doc
+    // so the QR flow can prefill identity); the Cloud Function is preferred.
+    match /users/{uid} {
+      allow get: if signedIn() || resource.data.status == 'unclaimed';
+      allow list: if signedIn();
+      // Self updates (rsvps, photo) once bound.
+      allow update: if signedIn() && resource.data.authUid == request.auth.uid;
+      // Activation bind: unclaimed → set my authUid.
+      allow update: if resource.data.status == 'unclaimed'
+        && request.resource.data.authUid == request.auth.uid;
+      allow create, delete: if isStaffOrAdmin() || allowSeedBootstrap();
+
+      // Subcollections live under the institutional record doc ({uid} = record
+      // id). The owner is whoever's authUid matches the parent record.
+      function ownsRecord() {
+        return signedIn() &&
+          get(/databases/$(database)/documents/users/$(uid)).data.authUid == request.auth.uid;
+      }
+      match /assignmentStatus/{aid} {
+        allow read, write: if ownsRecord();
+      }
+      match /notifications/{nid} {
+        // Owner reads + marks read; staff/admin fan-out writes (free, no Functions).
+        allow read, update: if ownsRecord();
+        allow create: if isStaffOrAdmin();
+      }
+    }
+
+    // One-time activation tokens (unguessable ids). Created by admins; read
+    // during the activation flow; consumed (used=true) on redeem.
+    match /signupTokens/{token} {
+      allow get: if true;
+      allow create: if hasRole('admin') || allowSeedBootstrap();
+      allow update: if signedIn(); // mark used / bind (function preferred)
+    }
+
+    match /courses/{id} {
+      allow read: if signedIn();
+      allow write: if isStaffOrAdmin() || allowSeedBootstrap();
+    }
+    match /classes/{id} {
+      allow read: if signedIn();
+      allow write: if isStaffOrAdmin() || allowSeedBootstrap();
+    }
+    match /assignments/{id} {
+      allow read: if signedIn();
+      allow write: if isStaffOrAdmin() || allowSeedBootstrap();
+    }
+    match /announcements/{id} {
+      allow read: if signedIn();
+      allow create, update, delete: if isStaffOrAdmin() || allowSeedBootstrap();
+    }
+    match /events/{id} {
+      allow read: if signedIn();
+      allow write: if isStaffOrAdmin() || allowSeedBootstrap();
+    }
+    match /mapPins/{id} { allow read: if signedIn(); allow write: if isStaffOrAdmin() || allowSeedBootstrap(); }
+    match /buildings/{id} { allow read: if signedIn(); allow write: if isStaffOrAdmin() || allowSeedBootstrap(); }
+    match /adminStats/{id} { allow read: if signedIn(); allow write: if hasRole('admin') || allowSeedBootstrap(); }
+
+    match /chats/{uid}/messages/{mid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Seed marker — readable before sign-in so `--dart-define=SEED=true` can check it.
+    match /_meta/{doc} {
+      allow get: if doc == 'seed' || signedIn();
+      allow create: if doc == 'seed' && allowSeedBootstrap();
+      allow update, delete: if signedIn();
+    }
+  }
+}

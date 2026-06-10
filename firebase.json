@@ -1,0 +1,49 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run build"]
+    }
+  ],
+  "emulators": {
+    "auth": { "port": 9099, "host": "0.0.0.0" },
+    "firestore": { "port": 8080, "host": "0.0.0.0", "rules": "firestore.emulator.rules" },
+    "functions": { "port": 5001, "host": "0.0.0.0" },
+    "ui": { "enabled": true, "host": "0.0.0.0" },
+    "singleProjectMode": true
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "smart-campus-asst-8391",
+          "appId": "1:839560434513:android:96f50b42865d3d4f49b970",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "ios": {
+        "default": {
+          "projectId": "smart-campus-asst-8391",
+          "appId": "1:839560434513:ios:76bf1236fae2cbde49b970",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "smart-campus-asst-8391",
+          "configurations": {
+            "android": "1:839560434513:android:96f50b42865d3d4f49b970",
+            "ios": "1:839560434513:ios:76bf1236fae2cbde49b970",
+            "web": "1:839560434513:web:efc4e059a78d4a9f49b970"
+          }
+        }
+      }
+    }
+  }
+}
