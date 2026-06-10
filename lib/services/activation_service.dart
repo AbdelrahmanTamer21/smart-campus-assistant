@@ -20,6 +20,7 @@ class ActivationService {
     await ref.set({
       'targetUserDocId': record.docId,
       'idNumber': record.idNumber,
+      'name': record.name,
       'used': false,
       'createdByUid': adminUid,
       'createdAt': FieldValue.serverTimestamp(),

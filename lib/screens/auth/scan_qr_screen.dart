@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -35,7 +36,8 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
     });
     try {
       final db = FirebaseFirestore.instance;
-      final snap = await db.collection('signupTokens').doc(token.trim()).get();
+      final trimmed = token.trim();
+      final snap = await db.collection('signupTokens').doc(trimmed).get();
       if (!snap.exists) throw 'This activation code is invalid.';
       final t = snap.data()!;
       if (t['used'] == true) throw 'This code has already been used.';
@@ -43,24 +45,49 @@ class _ScanQrScreenState extends State<ScanQrScreen> {
       if (exp != null && exp.isBefore(DateTime.now())) {
         throw 'This code has expired. Ask your admin for a new one.';
       }
-      final recId = t['targetUserDocId'] as String;
-      final rec = await db.collection('users').doc(recId).get();
-      if (!rec.exists || rec.data()?['status'] != 'unclaimed') {
-        throw 'This account is already activated.';
+
+      final idNumber = (t['idNumber'] as String?)?.trim() ?? '';
+      if (idNumber.isEmpty) throw 'This activation code is invalid.';
+
+      var name = (t['name'] as String?)?.trim() ?? '';
+      final recId = t['targetUserDocId'] as String?;
+      if (recId != null) {
+        try {
+          final rec = await db.collection('users').doc(recId).get();
+          if (!rec.exists || rec.data()?['status'] != 'unclaimed') {
+            throw 'This account is already activated.';
+          }
+          if (name.isEmpty) name = rec.data()?['name'] as String? ?? '';
+        } on FirebaseException catch (e) {
+          if (e.code == 'permission-denied') {
+            throw 'This account is already activated.';
+          }
+          rethrow;
+        }
       }
+
       if (!mounted) return;
       context.pushReplacement(Routes.completeSignup, extra: {
-        'token': token.trim(),
-        'name': rec.data()?['name'] ?? '',
-        'idNumber': rec.data()?['idNumber'] ?? '',
+        'token': trimmed,
+        'name': name,
+        'idNumber': idNumber,
       });
     } catch (e) {
       setState(() {
-        _error = e.toString();
+        _error = e is FirebaseException
+            ? _friendlyFirestore(e)
+            : e.toString().replaceFirst('Exception: ', '');
         _handling = false;
       });
     }
   }
+
+  String _friendlyFirestore(FirebaseException e) => switch (e.code) {
+        'permission-denied' =>
+          'This account is already activated or the code is no longer valid.',
+        'unavailable' => 'No connection. Check your network and try again.',
+        _ => 'Could not verify this code. Please try again.',
+      };
 
   @override
   Widget build(BuildContext context) {

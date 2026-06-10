@@ -310,6 +310,7 @@ class SeedService {
     await _db.collection('signupTokens').doc('DEMO-ACTIVATE-001').set({
       'targetUserDocId': docId,
       'idNumber': '202400999',
+      'name': 'Jordan Lee',
       'used': false,
       'createdByUid': 'seed',
       'createdAt': FieldValue.serverTimestamp(),

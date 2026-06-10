@@ -11,7 +11,7 @@ const db = getFirestore();
 const emailFor = (id: string) => `${id}@campus.local`;
 
 // ── F0: redeem a one-time QR activation token (atomic, server-trusted) ──
-export const redeemSignupToken = onCall(async (req) => {
+export const redeemSignupToken = onCall({invoker: "public"}, async (req) => {
   const token = (req.data?.token ?? "").toString().trim();
   const password = (req.data?.password ?? "").toString();
   if (!token || password.length < 8) {

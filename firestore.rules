@@ -47,7 +47,10 @@ service cloud.firestore {
     match /signupTokens/{token} {
       allow get: if true;
       allow create: if hasRole('admin') || allowSeedBootstrap();
-      allow update: if signedIn(); // mark used / bind (function preferred)
+      // Consumed after createUser during client-side activation fallback.
+      allow update: if signedIn()
+        && request.resource.data.used == true
+        && resource.data.used == false;
     }
 
     match /courses/{id} {
